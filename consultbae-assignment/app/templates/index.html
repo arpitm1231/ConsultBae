@@ -1,0 +1,86 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <title>ConsultBae - Audio Submission</title>
+  <style>
+    body { font-family: sans-serif; max-width: 480px; margin: 40px auto; padding: 0 16px; }
+    label { display: block; margin-top: 16px; font-weight: bold; }
+    input[type=text], input[type=tel] { width: 100%; padding: 8px; box-sizing: border-box; }
+    button { margin-top: 12px; padding: 10px 16px; cursor: pointer; }
+    #recStatus { margin-top: 8px; color: #666; }
+    a.nav { display:block; margin-bottom: 20px; }
+  </style>
+</head>
+<body>
+  <a class="nav" href="/submissions">&rarr; View all submissions</a>
+  <h2>Submit a voice recording</h2>
+
+  <form id="form" action="/submit" method="post" enctype="multipart/form-data">
+    <label>Name</label>
+    <input type="text" name="name" required>
+
+    <label>Phone number</label>
+    <input type="tel" name="phone" required>
+
+    <label>Option A: Upload an audio file</label>
+    <input type="file" name="audio" id="fileInput" accept="audio/*">
+
+    <label>Option B: Record in browser</label>
+    <div>
+      <button type="button" id="recordBtn">Start Recording</button>
+      <button type="button" id="stopBtn" disabled>Stop</button>
+      <div id="recStatus"></div>
+      <audio id="preview" controls style="display:none; margin-top:8px; width:100%;"></audio>
+    </div>
+
+    <button type="submit">Submit</button>
+  </form>
+
+  <script>
+    let mediaRecorder, chunks = [], recordedBlob = null;
+    const recordBtn = document.getElementById('recordBtn');
+    const stopBtn = document.getElementById('stopBtn');
+    const preview = document.getElementById('preview');
+    const fileInput = document.getElementById('fileInput');
+    const form = document.getElementById('form');
+
+    recordBtn.onclick = async () => {
+      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      mediaRecorder = new MediaRecorder(stream);
+      chunks = [];
+      mediaRecorder.ondataavailable = e => chunks.push(e.data);
+      mediaRecorder.onstop = () => {
+        recordedBlob = new Blob(chunks, { type: 'audio/webm' });
+        preview.src = URL.createObjectURL(recordedBlob);
+        preview.style.display = 'block';
+        fileInput.value = ''; // recording takes precedence over any chosen file
+      };
+      mediaRecorder.start();
+      document.getElementById('recStatus').innerText = 'Recording...';
+      recordBtn.disabled = true;
+      stopBtn.disabled = false;
+    };
+
+    stopBtn.onclick = () => {
+      mediaRecorder.stop();
+      document.getElementById('recStatus').innerText = 'Recorded.';
+      recordBtn.disabled = false;
+      stopBtn.disabled = true;
+    };
+
+    form.onsubmit = (e) => {
+      // If a browser recording exists and no file was chosen, inject the blob
+      // as the "audio" form field before the normal multipart submit happens.
+      if (recordedBlob && !fileInput.files.length) {
+        e.preventDefault();
+        const data = new FormData(form);
+        data.set('audio', recordedBlob, 'recording.webm');
+        fetch('/submit', { method: 'POST', body: data })
+          .then(res => { window.location.href = res.url; });
+      }
+      // else: normal file-upload submit proceeds as-is
+    };
+  </script>
+</body>
+</html>

@@ -1,0 +1,5 @@
+__pycache__/
+*.pyc
+app/uploads/*
+!app/uploads/.gitkeep
+scripts/consultbae.db
